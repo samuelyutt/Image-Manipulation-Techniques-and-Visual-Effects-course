@@ -69,22 +69,22 @@ def main():
 
     for img_name in img_names:
         print(f'Processing image {img_name}.')
+
         image = cv2.imread(f'{IMG_DIR}/image/{img_name}')
         trimap = cv2.imread(f'{IMG_DIR}/trimap/{img_name}')
 
         alpha = knn_matting(image, trimap)
-        plt.title('Alpha Matte')
-        plt.imshow(alpha, cmap='gray')
-        plt.show()
-        alpha = alpha[:, :, np.newaxis]
+        alpha = np.stack((alpha,) * 3, axis=-1)
 
-        
+        background = cv2.imread(f'{IMG_DIR}/background/bg_{img_name}')
+        background = cv2.resize(background, (image.shape[1], image.shape[0]))
 
-        # cv2.imwrite('{OUT_DIR}/{img_name}', alpha * 255)
+        compose = alpha * image + (1 - alpha) * background
+        compose = compose.astype(image.dtype)
 
+        cv2.imwrite(f'{OUT_DIR}/{img_name}', compose)
         print('Done.')
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
     main()
