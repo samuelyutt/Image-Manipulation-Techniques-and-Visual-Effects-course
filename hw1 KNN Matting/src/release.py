@@ -4,13 +4,13 @@ import scipy.sparse
 import warnings
 import cv2
 
-K = 10
+TEST_K = [1, 5, 10, 15, 20]
 
 IMG_DIR = '../img'
 OUT_DIR = '../result'
 
 
-def knn_matting(img, trimap, my_lambda=100):
+def knn_matting(K, img, trimap, my_lambda=100):
     [h, w, c] = img.shape
     img, trimap = img / 255.0, trimap / 255.0
     foreground = (trimap == 1.0).astype(int)
@@ -61,29 +61,34 @@ def knn_matting(img, trimap, my_lambda=100):
             my_lambda * v,
         )
         alpha = np.minimum(np.maximum(tmp[0], 0), 1).reshape(h, w)
+
     return alpha
 
 
 def main():
-    img_names = ['bear.png', 'gandalf.png', 'woman.png']
+    for K in TEST_K:
+        img_names = ['bear.png', 'gandalf.png', 'woman.png'] + [f'GT{i:02}.png' for i in range(1, 28)]
+        print(f'K = {K}.')
 
-    for img_name in img_names:
-        print(f'Processing image {img_name}.')
+        for img_name in img_names:
+            print(f'Processing image {img_name}.')
 
-        image = cv2.imread(f'{IMG_DIR}/image/{img_name}')
-        trimap = cv2.imread(f'{IMG_DIR}/trimap/{img_name}')
+            image = cv2.imread(f'{IMG_DIR}/image/{img_name}')
+            trimap = cv2.imread(f'{IMG_DIR}/trimap/{img_name}')
 
-        alpha = knn_matting(image, trimap)
-        alpha = np.stack((alpha,) * 3, axis=-1)
+            alpha = knn_matting(K, image, trimap)
+            alpha = np.stack((alpha,) * 3, axis=-1)
 
-        background = cv2.imread(f'{IMG_DIR}/background/bg_{img_name}')
-        background = cv2.resize(background, (image.shape[1], image.shape[0]))
+            background = cv2.imread(f'{IMG_DIR}/background/bg_{img_name}')
+            if background is None:
+                background = cv2.imread(f'{IMG_DIR}/background/bg_general.png')
+            background = cv2.resize(background, (image.shape[1], image.shape[0]))
 
-        compose = alpha * image + (1 - alpha) * background
-        compose = compose.astype(image.dtype)
+            compose = alpha * image + (1 - alpha) * background
+            compose = compose.astype(image.dtype)
 
-        cv2.imwrite(f'{OUT_DIR}/{img_name}', compose)
-        print('Done.')
+            cv2.imwrite(f'{OUT_DIR}/{K}_{img_name}', compose)
+            print('Done.')
 
 
 if __name__ == '__main__':
