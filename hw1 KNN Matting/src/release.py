@@ -4,8 +4,8 @@ import scipy.sparse
 import warnings
 import cv2
 
-TEST_K = [1, 5, 10, 15, 20]
-
+# TEST_K = [1, 5, 10, 15, 20]
+TEST_K = [10]
 IMG_DIR = '../img'
 OUT_DIR = '../result'
 
@@ -66,28 +66,36 @@ def knn_matting(K, img, trimap, my_lambda=100):
 
 
 def main():
+    # img_names = ['bear.png', 'gandalf.png', 'woman.png'] + [f'GT{i:02}.png' for i in range(1, 28)]
+    img_names = ['bear.png', 'gandalf.png', 'woman.png']
+
     for K in TEST_K:
-        img_names = ['bear.png', 'gandalf.png', 'woman.png'] + [f'GT{i:02}.png' for i in range(1, 28)]
-        print(f'K = {K}.')
+        print(f'K = {K}')
 
         for img_name in img_names:
             print(f'Processing image {img_name}.')
 
+            # Read image and trimap
             image = cv2.imread(f'{IMG_DIR}/image/{img_name}')
             trimap = cv2.imread(f'{IMG_DIR}/trimap/{img_name}')
 
+            # Calculate alpha and extend dimension
             alpha = knn_matting(K, image, trimap)
             alpha = np.stack((alpha,) * 3, axis=-1)
 
+            # Read background and resize
             background = cv2.imread(f'{IMG_DIR}/background/bg_{img_name}')
             if background is None:
                 background = cv2.imread(f'{IMG_DIR}/background/bg_general.png')
             background = cv2.resize(background, (image.shape[1], image.shape[0]))
 
+            # Compose image and background
+            # Hint: C = alpha * F + (1 - alpha) * B
             compose = alpha * image + (1 - alpha) * background
             compose = compose.astype(image.dtype)
 
-            cv2.imwrite(f'{OUT_DIR}/{K}_{img_name}', compose)
+            # Output the result
+            cv2.imwrite(f'{OUT_DIR}/{K:02}_{img_name}', compose)
             print('Done.')
 
 
