@@ -1,3 +1,8 @@
+"""
+Part of the codes and ideas are referenced from the listed sources:
+- https://github.com/MarcoForte/knn-matting
+"""
+
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import scipy.sparse
@@ -8,6 +13,7 @@ import cv2
 TEST_K = [10]
 IMG_DIR = '../img'
 OUT_DIR = '../result'
+ADJ_BG_INTENSITY = True
 
 
 def knn_matting(K, img, trimap, my_lambda=100):
@@ -26,6 +32,7 @@ def knn_matting(K, img, trimap, my_lambda=100):
     X = np.append(rgb, xy, axis=1)
 
     # Calculate nearest neighbors
+    # Referenced from Github
     nn = NearestNeighbors(n_neighbors=K, n_jobs=4).fit(X)
     knn = nn.kneighbors(X)[1]
 
@@ -37,9 +44,11 @@ def knn_matting(K, img, trimap, my_lambda=100):
     k = 1 - np.linalg.norm(X[i] - X[j], axis=1) / C
 
     # Calculate the affinity matrix A
+    # Referenced from Github
     A = scipy.sparse.coo_matrix((k, (i, j)), shape=(img_size, img_size))
 
     # Prepare for objective function
+    # Referenced from Github
     # Hint: obj = (L + lambda * M) * alpha - lambda * v
     D = scipy.sparse.diags(np.ravel(A.sum(axis=1)))
     L = D - A
@@ -47,6 +56,7 @@ def knn_matting(K, img, trimap, my_lambda=100):
     v = np.ravel(foreground[:, :, 0]).T
 
     # Solve for the linear system
+    # Referenced from Github
     warnings.filterwarnings('error')
     alpha = []
     try:
@@ -63,6 +73,17 @@ def knn_matting(K, img, trimap, my_lambda=100):
         alpha = np.minimum(np.maximum(tmp[0], 0), 1).reshape(h, w)
 
     return alpha
+
+
+def adjust_intensity(img, alpha, img_ref):
+    # Calculate the intensity-tuned image
+    intensity_scale = np.average(img_ref[alpha > 0.5]) / np.average(img)
+
+    tmp_img = img * intensity_scale
+    tmp_img[tmp_img > 255] = 255
+    new_img = tmp_img.astype(img.dtype)
+
+    return new_img
 
 
 def main():
@@ -89,14 +110,19 @@ def main():
                 background = cv2.imread(f'{IMG_DIR}/background/bg_general.png')
             background = cv2.resize(background, (image.shape[1], image.shape[0]))
 
+            if ADJ_BG_INTENSITY:
+                # Adjust the intensity of background to mimic the foreground
+                print('Adjusting background intensity.')
+                background = adjust_intensity(background, alpha, image)
+
             # Compose image and background
             # Hint: C = alpha * F + (1 - alpha) * B
             compose = alpha * image + (1 - alpha) * background
             compose = compose.astype(image.dtype)
 
             # Output the result
-            cv2.imwrite(f'{OUT_DIR}/{K:02}_{img_name}', compose)
-            print('Done.')
+            cv2.imwrite(f'{OUT_DIR}/{K:02}_{"ADJBG_" if ADJ_BG_INTENSITY else ""}{img_name}', compose)
+            print('Done and saved.')
 
 
 if __name__ == '__main__':
